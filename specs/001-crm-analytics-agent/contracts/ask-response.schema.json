@@ -1,0 +1,247 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ask-response",
+  "title": "POST /ask — Response Body",
+  "description": "Unified response envelope for all question types. The responseType field is the discriminator.",
+  "type": "object",
+  "required": ["responseType", "requestId", "latencyMs", "payload", "warnings"],
+  "additionalProperties": false,
+  "properties": {
+    "responseType": {
+      "type": "string",
+      "enum": ["scripted-analytics", "general-table", "clarification-needed", "error"],
+      "description": "Discriminator for the payload shape."
+    },
+    "requestId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Server-generated unique request identifier for observability."
+    },
+    "latencyMs": {
+      "type": "number",
+      "description": "End-to-end server-side processing latency in milliseconds."
+    },
+    "payload": {
+      "description": "Typed by responseType. Exactly one of the payload shapes below.",
+      "oneOf": [
+        { "$ref": "#/$defs/ScriptedPayload" },
+        { "$ref": "#/$defs/TablePayload" },
+        { "$ref": "#/$defs/ClarificationPayload" },
+        { "$ref": "#/$defs/ErrorPayload" }
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Non-fatal notices such as data truncation or partial CRM data. Empty array when none."
+    }
+  },
+  "$defs": {
+    "ScriptedPayload": {
+      "title": "ScriptedPayload",
+      "description": "Returned when responseType is 'scripted-analytics'.",
+      "type": "object",
+      "required": ["scriptedIntentId", "chart", "summary", "insights", "dataTimestamp"],
+      "additionalProperties": false,
+      "properties": {
+        "scriptedIntentId": {
+          "type": "integer",
+          "enum": [1, 2, 3, 4, 5],
+          "description": "Which of the 5 scripted questions was matched. 1=zombie deals, 2=Q3 stage conversion, 3=win rate by product, 4=shortest sales cycle, 5=pipeline changes."
+        },
+        "chart": { "$ref": "#/$defs/ChartPayload" },
+        "summary": {
+          "type": "string",
+          "description": "LLM-generated narrative highlight in plain language. Empty string when no data."
+        },
+        "insights": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GraphInsight" },
+          "description": "LLM-generated insight bullets. Minimum 2 when data is present. Empty array when no data."
+        },
+        "dataTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when CRM data was fetched."
+        }
+      }
+    },
+    "ChartPayload": {
+      "title": "ChartPayload",
+      "description": "Self-describing chart data renderable by any standard charting library.",
+      "type": "object",
+      "required": ["type", "title", "xAxisLabel", "yAxisLabel", "labels", "datasets"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bar", "horizontal-bar", "line", "pie", "donut", "scatter"]
+        },
+        "title": { "type": "string" },
+        "xAxisLabel": { "type": ["string", "null"] },
+        "yAxisLabel": { "type": ["string", "null"] },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Category labels. Index-aligned with each dataset.data array."
+        },
+        "datasets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChartDataset" },
+          "minItems": 0
+        }
+      }
+    },
+    "ChartDataset": {
+      "title": "ChartDataset",
+      "type": "object",
+      "required": ["label", "data"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "description": "Series name." },
+        "data": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "Values aligned with ChartPayload.labels."
+        },
+        "color": { "type": ["string", "null"], "description": "Hex color hint, e.g. '#4A90E2'." }
+      }
+    },
+    "GraphInsight": {
+      "title": "GraphInsight",
+      "type": "object",
+      "required": ["type", "text", "dataPoint"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["outlier", "top-performer", "bottom-performer", "largest-change", "notable-shift", "no-data"]
+        },
+        "text": { "type": "string", "description": "Plain-language observation." },
+        "dataPoint": { "type": ["string", "null"], "description": "The specific value or entity referenced." }
+      }
+    },
+    "TablePayload": {
+      "title": "TablePayload",
+      "description": "Returned when responseType is 'general-table'.",
+      "type": "object",
+      "required": ["columns", "rows", "meta"],
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TableColumn" },
+          "minItems": 1
+        },
+        "rows": {
+          "type": "array",
+          "items": { "type": "object" },
+          "description": "Data rows keyed by column name. Missing values represented as null."
+        },
+        "meta": { "$ref": "#/$defs/TableMeta" }
+      }
+    },
+    "TableColumn": {
+      "title": "TableColumn",
+      "type": "object",
+      "required": ["name", "label", "dataType"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "label": { "type": "string" },
+        "dataType": { "type": "string", "enum": ["string", "number", "date", "boolean"] }
+      }
+    },
+    "TableMeta": {
+      "title": "TableMeta",
+      "type": "object",
+      "required": ["totalCount", "returnedCount", "pageSize", "pageNumber", "hasMore", "appliedFilters", "timeRange"],
+      "additionalProperties": false,
+      "properties": {
+        "totalCount": { "type": "integer" },
+        "returnedCount": { "type": "integer" },
+        "pageSize": { "type": "integer" },
+        "pageNumber": { "type": "integer", "minimum": 1 },
+        "hasMore": { "type": "boolean" },
+        "appliedFilters": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Display-only filters applied. Keys and values are human-readable strings, not CRM field names."
+        },
+        "timeRange": { "type": ["string", "null"] }
+      }
+    },
+    "ClarificationPayload": {
+      "title": "ClarificationPayload",
+      "description": "Returned when responseType is 'clarification-needed'.",
+      "type": "object",
+      "required": ["message", "ambiguousContext", "examples"],
+      "additionalProperties": false,
+      "properties": {
+        "message": { "type": "string" },
+        "ambiguousContext": { "type": "string" },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "maxItems": 3
+        }
+      }
+    },
+    "ErrorPayload": {
+      "title": "ErrorPayload",
+      "description": "Returned when responseType is 'error'.",
+      "type": "object",
+      "required": ["errorCategory", "message", "suggestedActions"],
+      "additionalProperties": false,
+      "properties": {
+        "errorCategory": {
+          "type": "string",
+          "enum": ["auth", "no-data", "unsupported-question", "partial-data", "api-unavailable"]
+        },
+        "message": { "type": "string" },
+        "suggestedActions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "responseType": "scripted-analytics",
+      "requestId": "550e8400-e29b-41d4-a716-446655440001",
+      "latencyMs": 1340,
+      "payload": {
+        "scriptedIntentId": 1,
+        "chart": {
+          "type": "horizontal-bar",
+          "title": "Opportunities with No Interaction (Last 14 Days)",
+          "xAxisLabel": "Days Since Last Activity",
+          "yAxisLabel": "Opportunity",
+          "labels": ["Acme Renewal", "Beta Corp Expansion"],
+          "datasets": [{ "label": "Days Inactive", "data": [22, 18], "color": null }]
+        },
+        "summary": "2 open opportunities have had no activity in over 2 weeks. Acme Renewal is the most at-risk at 22 days.",
+        "insights": [
+          { "type": "outlier", "text": "Acme Renewal has been silent for 22 days — 8 days past the 2-week threshold.", "dataPoint": "22 days" },
+          { "type": "notable-shift", "text": "Both deals are past their original expected close date.", "dataPoint": null }
+        ],
+        "dataTimestamp": "2026-03-03T10:00:00Z"
+      },
+      "warnings": []
+    },
+    {
+      "responseType": "error",
+      "requestId": "550e8400-e29b-41d4-a716-446655440002",
+      "latencyMs": 95,
+      "payload": {
+        "errorCategory": "auth",
+        "message": "Your SugarCRM session has expired. Please sign in again.",
+        "suggestedActions": ["Refresh your SugarCRM OAuth token and retry the request."]
+      },
+      "warnings": []
+    }
+  ]
+}

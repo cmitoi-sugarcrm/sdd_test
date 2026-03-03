@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ask-request",
+  "title": "POST /ask — Request Body",
+  "description": "The request payload for the SugarCRM Analytics Agent endpoint. The SugarCRM OAuth 2.0 bearer token is provided via the Authorization header, not in the body.",
+  "type": "object",
+  "required": ["question"],
+  "additionalProperties": false,
+  "properties": {
+    "question": {
+      "type": "string",
+      "description": "Natural-language question about SugarCRM data.",
+      "minLength": 1,
+      "maxLength": 2000,
+      "examples": [
+        "Show me opportunities with no interaction the last 2 weeks",
+        "Break down my Q3 pipeline by stage conversion rates",
+        "Show me win rates by product category",
+        "Who has the shortest average sales cycle in my team?",
+        "What's changed in the pipeline this past week?",
+        "List all open deals assigned to me this quarter"
+      ]
+    },
+    "sessionId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Optional session identifier to support follow-up scope refinements. Omit for stateless single-question requests."
+    }
+  },
+  "examples": [
+    {
+      "question": "Show me opportunities with no interaction the last 2 weeks"
+    },
+    {
+      "question": "Now show me the same for the last 30 days",
+      "sessionId": "550e8400-e29b-41d4-a716-446655440000"
+    }
+  ]
+}
